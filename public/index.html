@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clip Maker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+    }
+    h1 { font-size: 20px; margin-bottom: 24px; color: #111; }
+    label { display: block; font-size: 13px; color: #555; margin-bottom: 6px; }
+    input {
+      width: 100%;
+      padding: 10px 14px;
+      font-size: 15px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: #0070f3; }
+    button {
+      margin-top: 16px;
+      width: 100%;
+      padding: 11px;
+      font-size: 15px;
+      font-weight: 500;
+      background: #0070f3;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover:not(:disabled) { background: #005dd1; }
+    button:disabled { background: #aaa; cursor: not-allowed; }
+
+    .steps {
+      margin-top: 24px;
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      color: #888;
+    }
+    .step.active { color: #333; }
+    .step.done { color: #18a349; }
+    .step-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid #ddd;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+    }
+    .step.active .step-icon {
+      border-color: #0070f3;
+      animation: pulse 1s infinite;
+    }
+    .step.done .step-icon {
+      border-color: #18a349;
+      background: #18a349;
+      color: white;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    #download {
+      display: none;
+      margin-top: 20px;
+      width: 100%;
+      padding: 11px;
+      font-size: 15px;
+      font-weight: 500;
+      background: #18a349;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+    }
+    #download:hover { background: #148a3d; }
+    .error { margin-top: 16px; font-size: 14px; color: #c0392b; display: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Clip Maker</h1>
+    <label for="videoId">Video ID</label>
+    <input type="text" id="videoId" placeholder="e.g. 161444" autofocus>
+    <button id="btn" onclick="makeClip()">Make Clip</button>
+
+    <div class="steps" id="steps">
+      <div class="step" id="step-mux">
+        <div class="step-icon" id="icon-mux"></div>
+        <span>Mux asset ready</span>
+      </div>
+      <div class="step" id="step-clip">
+        <div class="step-icon" id="icon-clip"></div>
+        <span>Video clipped</span>
+      </div>
+    </div>
+
+    <a id="download" href="#" download>Download Clip</a>
+    <p class="error" id="error"></p>
+  </div>
+
+  <script>
+    let activeSource = null;
+
+    function setStep(id, state) {
+      const step = document.getElementById('step-' + id);
+      const icon = document.getElementById('icon-' + id);
+      step.className = 'step ' + state;
+      icon.textContent = state === 'done' ? '✓' : '';
+    }
+
+    function reset() {
+      ['mux', 'clip'].forEach(id => setStep(id, ''));
+      document.getElementById('download').style.display = 'none';
+      document.getElementById('error').style.display = 'none';
+      document.getElementById('steps').style.display = 'none';
+    }
+
+    async function makeClip() {
+      const videoId = document.getElementById('videoId').value.trim();
+      if (!videoId) return;
+
+      if (activeSource) activeSource.close();
+      reset();
+
+      document.getElementById('btn').disabled = true;
+      document.getElementById('steps').style.display = 'flex';
+      setStep('mux', 'active');
+
+      activeSource = new EventSource(`/clip/status?videoId=${encodeURIComponent(videoId)}`);
+
+      activeSource.addEventListener('mux_ready', () => {
+        setStep('mux', 'done');
+        setStep('clip', 'active');
+      });
+
+      activeSource.addEventListener('done', (e) => {
+        const { url } = JSON.parse(e.data);
+        setStep('clip', 'done');
+        const dl = document.getElementById('download');
+        dl.href = url;
+        dl.download = `clip_${videoId}.mp4`;
+        dl.style.display = 'block';
+        document.getElementById('btn').disabled = false;
+        activeSource.close();
+      });
+
+      activeSource.addEventListener('error', (e) => {
+        try {
+          const { message } = JSON.parse(e.data);
+          document.getElementById('error').textContent = `Error: ${message}`;
+        } catch {
+          document.getElementById('error').textContent = 'An unexpected error occurred.';
+        }
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('btn').disabled = false;
+        activeSource.close();
+      });
+    }
+
+    document.getElementById('videoId').addEventListener('keydown', e => {
+      if (e.key === 'Enter') makeClip();
+    });
+  </script>
+</body>
+</html>
