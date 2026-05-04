@@ -7,12 +7,17 @@ const pool = new Pool({
   user: process.env.DB_USER,
   password: process.env.DB_PWD,
   ssl: process.env.DB_SSL_REQUIRED === 'true' ? { rejectUnauthorized: false } : false,
+  max: 5,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
 });
 
 async function getClipJob(videoId) {
   const result = await pool.query(
     `SELECT
        v.id,
+       v.title,
+       v.artist,
        v.clip_start_ms,
        v.clip_end_ms,
        m.asset_id,
