@@ -13,6 +13,8 @@ async function getClipJob(videoId) {
   const result = await pool.query(
     `SELECT
        v.id,
+       v.artist,
+       v.title,
        v.clip_start_ms,
        v.clip_end_ms,
        m.asset_id,

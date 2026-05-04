@@ -27,6 +27,8 @@ async function main() {
   try {
     console.log(`\nFetching clip job for video id: ${videoId}`);
     const job = await getClipJob(videoId);
+    console.log(`  Artist:      ${job.artist}`);
+    console.log(`  Title:       ${job.title}`);
     console.log(`  Asset ID:    ${job.asset_id}`);
     console.log(`  Playback ID: ${job.playback_id}`);
     console.log(`  Clip start:  ${job.clip_start_ms}ms`);
@@ -43,7 +45,12 @@ async function main() {
     console.log(`  URL:   ${mp4Url}`);
 
     const clipBuffer = await trimClip(mp4Url, job.clip_start_ms, job.clip_end_ms);
-    const outputPath = path.join(__dirname, `clip_${videoId}.mp4`);
+
+    // Generate filename from artist and title, sanitizing for filesystem
+    const sanitize = (str) => str.replace(/[/\\?%*:|"<>]/g, '-');
+    const filename = `${sanitize(job.artist)} - ${sanitize(job.title)} - clip_start_${job.clip_start_ms}.mp4`;
+    const outputPath = path.join(__dirname, filename);
+
     fs.writeFileSync(outputPath, clipBuffer);
     console.log(`\nClip saved to: ${outputPath}`);
   } catch (err) {
