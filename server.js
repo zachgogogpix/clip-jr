@@ -39,10 +39,12 @@ app.get('/clip/status', async (req, res) => {
     const mp4Url = buildMp4Url(job.playback_id);
     const clipBuffer = await trimClip(mp4Url, job.clip_start_ms, job.clip_end_ms);
 
-    const filename = `clip_${videoId}.mp4`;
+    // Generate filename from artist and title, sanitizing for filesystem
+    const sanitize = (str) => str.replace(/[/\\?%*:|"<>]/g, '-');
+    const filename = `${sanitize(job.artist)} - ${sanitize(job.title)} - clip_start_${job.clip_start_ms}.mp4`;
     fs.writeFileSync(path.join(__dirname, 'clips', filename), clipBuffer);
 
-    send('done', { url: `/clips/${filename}` });
+    send('done', { url: `/clips/${encodeURIComponent(filename)}` });
   } catch (err) {
     console.error(err.response?.data || err.message);
     send('error', { message: err.response?.data?.error?.messages?.[0] || err.message });
